@@ -11,7 +11,7 @@ import java.io.File;
 @Component
 public class FileParsingScheduler {
     @Value("${file.input.dir}")
-private static final String INPUT_DIR = "";
+public String INPUT_DIR = "";
 
     private final FileProcessingService fileProcessingService;
 
@@ -25,6 +25,9 @@ private static final String INPUT_DIR = "";
     @Scheduled(fixedDelay = 10000)
     public void run() {
         log.info("SPRING SCHEDULER IS RUNNING");
+        if (INPUT_DIR == null || INPUT_DIR.isBlank()) {
+            throw new IllegalStateException("file.input.dir must not be empty");
+        }
         File dir = new File(INPUT_DIR);
 
         if (!dir.exists() || !dir.isDirectory()) {

@@ -2,6 +2,7 @@ package com.accolite.kafka.producer;
 
 import com.accolite.entity.ParsedRecord;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -9,7 +10,8 @@ import org.springframework.stereotype.Service;
 public class KafkaProducerService {
     private final KafkaTemplate<Object, ParsedRecord> kafkaTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private static final String TOPIC = "test-topic";
+    @Value("${kafka.input.topic}")
+    private String TOPIC ="";
 
     public KafkaProducerService(KafkaTemplate<Object, ParsedRecord> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;

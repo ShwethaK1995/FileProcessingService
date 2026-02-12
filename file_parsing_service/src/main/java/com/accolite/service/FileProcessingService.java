@@ -32,6 +32,7 @@ public class FileProcessingService {
                     records.add(record);
                 } catch (Exception e) {
                     System.err.println("Failed to parse line: " + line + " Error: " + e.getMessage());
+                    throw new IllegalArgumentException("Invalid line encountered, aborting file: " + line, e);
                 }
             }
         }
