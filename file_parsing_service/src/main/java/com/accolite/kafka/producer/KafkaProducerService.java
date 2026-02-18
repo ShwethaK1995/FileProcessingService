@@ -1,29 +1,34 @@
 package com.accolite.kafka.producer;
 
 import com.accolite.entity.ParsedRecord;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.accolite.entity.DeadLetterMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
 public class KafkaProducerService {
-    private final KafkaTemplate<Object, ParsedRecord> kafkaTemplate;
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    @Value("${kafka.input.topic}")
-    private String TOPIC ="";
 
-    public KafkaProducerService(KafkaTemplate<Object, ParsedRecord> kafkaTemplate) {
-        this.kafkaTemplate = kafkaTemplate;
+    private final KafkaTemplate<String, ParsedRecord> recordTemplate;
+    private final KafkaTemplate<String, DeadLetterMessage> dltTemplate;
+
+    @Value("${kafka.topic.parser}")
+    private String parserTopic;
+
+    @Value("${kafka.topic.dlt}")
+    private String dltTopic;
+
+    public KafkaProducerService(KafkaTemplate<String, ParsedRecord> recordTemplate,
+                                KafkaTemplate<String, DeadLetterMessage> dltTemplate) {
+        this.recordTemplate = recordTemplate;
+        this.dltTemplate = dltTemplate;
     }
 
-    public void sendRecord(ParsedRecord record) {
-        try {
-            String json = objectMapper.writeValueAsString(record);
-            System.out.println("Sending JSON to Kafka: " + json);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        kafkaTemplate.send(TOPIC, record);
+    public void sendRecord(String key, ParsedRecord record) {
+        recordTemplate.send(parserTopic, key, record);
+    }
+
+    public void sendDLT(String key,DeadLetterMessage msg) {
+        dltTemplate.send(dltTopic,key,msg);
     }
 }

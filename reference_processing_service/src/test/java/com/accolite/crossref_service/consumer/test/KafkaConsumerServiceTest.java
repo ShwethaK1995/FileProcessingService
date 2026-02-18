@@ -1,4 +1,4 @@
-package com.accolite.crossref_service;
+package com.accolite.crossref_service.consumer.test;
 
 import com.accolite.crossref_service.consumer.KafkaConsumerService;
 import com.accolite.crossref_service.consumer.KafkaProducerService;
@@ -74,5 +74,47 @@ class KafkaConsumerServiceTest {
         verify(referenceRepository, times(1)).existsById("CUSIP123");
         verify(kafkaProducerService, times(1)).send(message);
     }
+
+    @Test
+    void consume_shouldThrowException_whenRepositoryFails() {
+
+        when(referenceRepository.existsById("CUSIP123"))
+                .thenThrow(new RuntimeException("DB error"));
+
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> kafkaConsumerService.consume(message)
+        );
+
+        assertEquals("DB error", exception.getMessage());
+        verify(referenceRepository, times(1)).existsById("CUSIP123");
+        verifyNoInteractions(kafkaProducerService);
+    }
+    @Test
+    void consume_shouldThrowException_whenProducerFails() {
+
+        when(referenceRepository.existsById("CUSIP123"))
+                .thenReturn(true);
+
+        doThrow(new RuntimeException("Kafka error"))
+                .when(kafkaProducerService).send(message);
+
+        RuntimeException exception = assertThrows(
+                RuntimeException.class,
+                () -> kafkaConsumerService.consume(message)
+        );
+
+        assertEquals("Kafka error", exception.getMessage());
+    }
+    @Test
+    void consume_shouldHandleBlankCusip() {
+
+        message.setCusipId("");
+
+        kafkaConsumerService.consume(message);
+
+        verify(referenceRepository).existsById("");
+    }
+
 }
 

@@ -55,3 +55,16 @@ tasks.named('jacocoTestReport') {
         html.required = true
     }
 }
+
+jacocoTestReport {
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                    '**/*Application*',
+                    '**/dto/**',
+                    '**/entity/**',
+                    '**/config/**'
+            ])
+        }))
+    }
+}

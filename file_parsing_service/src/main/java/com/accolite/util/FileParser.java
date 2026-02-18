@@ -1,7 +1,9 @@
 package com.accolite.util;
 
 import com.accolite.entity.ParsedRecord;
+import org.springframework.stereotype.Component;
 
+@Component
 public class FileParser {
 
     public static ParsedRecord parseLine(String line) {

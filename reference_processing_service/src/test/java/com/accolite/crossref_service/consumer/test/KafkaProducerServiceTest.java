@@ -1,4 +1,4 @@
-package com.accolite.crossref_service;
+package com.accolite.crossref_service.consumer.test;
 
 import com.accolite.crossref_service.consumer.KafkaProducerService;
 import com.accolite.crossref_service.dto.ReferenceMessage;
