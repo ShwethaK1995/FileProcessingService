@@ -2,6 +2,7 @@ package com.accolite.service;
 
 import com.accolite.util.FileIngestProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -21,19 +22,20 @@ public class FileParsingScheduler {
     private final FileProcessingService service;
 
     public FileParsingScheduler(FileIngestProperties props,
-                                ExecutorService executor,
+                                @Qualifier("fileIntakeExecutor") ExecutorService intakeExecutor,
                                 FileClaimer claimer,
                                 FileChunkProcessor.FileCompletenessChecker checker,
                                 FileProcessingService service) {
         this.props = props;
-        this.executor = executor;
+        this.executor = intakeExecutor;
         this.claimer = claimer;
         this.checker = checker;
         this.service = service;
     }
 
-    @Scheduled(fixedDelayString = "${file.ingest.pollMs:5000}")
+    //@Scheduled(fixedDelay=5000)
     public void poll() {
+        System.out.println("FileParsingScheduler::poll:enter");
         try {
             Path inputDir = Paths.get(props.inputDir());
             if (!Files.isDirectory(inputDir)) return;
@@ -60,6 +62,7 @@ public class FileParsingScheduler {
                                             executor.submit(() -> service.process(claimed)));
                         });
             }
+            System.out.println("FileParsingScheduler::poll:exit");
         } catch (Exception e) {
             log.error("Scheduler error", e);
         }

@@ -8,6 +8,7 @@ import com.accolite.util.FileParser;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -42,8 +43,6 @@ public class FileChunkProcessor implements Callable<Integer> {
     @Override
     public Integer call() {
 
-
-
         int processedCount = 0;
         int failedCount = 0;
 
@@ -70,31 +69,34 @@ public class FileChunkProcessor implements Callable<Integer> {
 
                     ParsedRecord parsedRecord = fileParser.parseLine(record);
 
-                    kafkaProducerService.sendRecord(key,parsedRecord);
+                    kafkaProducerService.sendRecord(key, parsedRecord);
 
                     processedCount++;
 
                 } catch (Exception recordException) {
+                        failedCount++;
 
-                    failedCount++;
+                        DeadLetterMessage dlt = new DeadLetterMessage();
+                        dlt.setRawRecord(record);
+                        dlt.setErrorMessage(recordException.getMessage());
+                        dlt.setFileName(file.getName());
+                        dlt.setRecordIndex(lineNumber);
+                        dlt.setTimestamp(System.currentTimeMillis());
 
-                    // Send raw record to DLT
-                    kafkaProducerService.sendDLT(key,new DeadLetterMessage());
+                        kafkaProducerService.sendDLT(key, dlt);
+                    }
                 }
-            }
+            } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
 
-            System.out.println("Chunk " + startRecord + " - " + endRecord +
+        System.out.println("Chunk " + startRecord + " - " + endRecord +
                     " processed: " + processedCount +
                     " failed: " + failedCount);
 
             return processedCount;
 
-        } catch (Exception e) {
 
-            // System-level failure → fail entire chunk
-            throw new RuntimeException("Chunk failed from "
-                    + startRecord + " to " + endRecord, e);
-        }
     }
 
     @Component

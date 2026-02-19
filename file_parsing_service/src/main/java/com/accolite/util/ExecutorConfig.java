@@ -12,14 +12,21 @@ import java.util.concurrent.TimeUnit;
 public class ExecutorConfig {
 
     @Bean(destroyMethod = "shutdown")
-    public ExecutorService fileExecutor(ConcurrencyProperties props) {
-        int workers = props.workers() > 0 ? props.workers() : 4;
-        int cap = props.queueCapacity() > 0 ? props.queueCapacity() : 100;
+    public ExecutorService fileIntakeExecutor(ConcurrencyProperties props) {
+        int workers = props.workers();
+        int cap = props.queueCapacity();
         return new ThreadPoolExecutor(
-                workers,
-                workers ,
-                0L,
-                TimeUnit.MILLISECONDS,
+                workers, workers, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(cap),
+                new ThreadPoolExecutor.CallerRunsPolicy());
+    }
+
+    @Bean(destroyMethod = "shutdown")
+    public ExecutorService chunkExecutor(ConcurrencyProperties props) {
+        int workers = Math.max(4, props.workers());                    // larger for parsing
+        int cap = Math.max(200, props.queueCapacity());
+        return new ThreadPoolExecutor(
+                workers, workers, 0L, TimeUnit.MILLISECONDS,
                 new ArrayBlockingQueue<>(cap),
                 new ThreadPoolExecutor.CallerRunsPolicy());
     }
