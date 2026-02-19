@@ -6,8 +6,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class FileParser {
 
+    private static int recordLength = 0;
+
+    public FileParser(FileIngestProperties props) {
+        recordLength = props.recordLength(); // add to props
+    }
+
     public static ParsedRecord parseLine(String line) {
-        if (line.length() < 31) {
+        if (line.length() < recordLength) {
             throw new IllegalArgumentException("Line too short: " + line);
         }
 

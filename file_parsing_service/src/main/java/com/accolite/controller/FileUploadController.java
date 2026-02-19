@@ -25,24 +25,32 @@ public class FileUploadController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file) throws Exception {
-        Path inputDir = Paths.get(props.inputDir());
-        Files.createDirectories(inputDir);
+    public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file) {
+        try {
+            Path inputDir = Paths.get(props.inputDir());
+            Files.createDirectories(inputDir);
 
-        String original = file.getOriginalFilename();
-        if (original == null || original.isBlank()) {
-            return ResponseEntity.badRequest().body("Missing filename");
+            String original = file.getOriginalFilename();
+            if (original == null || original.isBlank()) {
+                return ResponseEntity.badRequest().body("Missing filename");
+            }
+
+            // IMPORTANT: prevent path traversal
+            original = Paths.get(original).getFileName().toString();
+
+            Path tmp = inputDir.resolve(original + ".part");
+            Path fin = inputDir.resolve(original);
+
+            try (InputStream in = file.getInputStream()) {
+                Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            Files.move(tmp, fin, StandardCopyOption.REPLACE_EXISTING);
+
+            return ResponseEntity.ok("Uploaded: " + fin.getFileName());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
         }
-
-        Path tmp = inputDir.resolve(original + ".part");
-        Path fin = inputDir.resolve(original);
-
-        // Write temp, then commit
-        try (InputStream in = file.getInputStream()) {
-            Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
-        }
-        Files.move(tmp, fin, StandardCopyOption.REPLACE_EXISTING);
-
-        return ResponseEntity.ok("Uploaded: " + fin.getFileName());
     }
+
 }
