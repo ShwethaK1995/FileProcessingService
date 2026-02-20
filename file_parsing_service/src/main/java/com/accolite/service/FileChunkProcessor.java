@@ -69,7 +69,7 @@ public class FileChunkProcessor implements Callable<Integer> {
 
                     ParsedRecord parsedRecord = fileParser.parseLine(record);
 
-                    kafkaProducerService.sendRecord(key, parsedRecord);
+                    kafkaProducerService.sendRecord(key, parsedRecord,file.getName(),lineNumber);
 
                     processedCount++;
 

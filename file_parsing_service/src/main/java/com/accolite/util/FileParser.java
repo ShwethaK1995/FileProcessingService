@@ -13,6 +13,9 @@ public class FileParser {
     }
 
     public static ParsedRecord parseLine(String line) {
+        if (line == null) {
+            throw new IllegalArgumentException("line is null");
+        }
         if (line.length() < recordLength) {
             throw new IllegalArgumentException("Line too short: " + line);
         }

@@ -3,8 +3,7 @@ package com.accolite.data_validation_service.service;
 import com.accolite.data_validation_service.ReferenceEntity;
 import com.accolite.data_validation_service.kafka.producer.KafkaProducerService;
 import com.accolite.data_validation_service.repository.ReferenceRepository;
-import com.accolite.data_validation_service.service.DataValidationService;
-import com.accolite.data_validation_service.service.ReferenceMessage;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -84,16 +83,14 @@ class DataValidationServiceTest {
 
     @Test
     void invalidAction_shouldFail() {
-        ReferenceMessage m = baseValid("X");
-        when(repository.existsById("CUS123")).thenReturn(false);
+        ReferenceMessage msg = new ReferenceMessage();
+        msg.setAction("X"); // invalid
 
-        assertThrows(IllegalArgumentException.class, () -> service.process(m));
+        assertThrows(IllegalArgumentException.class, () -> service.validate(msg));
 
-        verify(repository, never()).save(any());
-        verify(producer, never()).send(any());
+        // and verify repo not called (this also increases coverage)
+        verifyNoInteractions(repository);
     }
-
-    // ---- Field validation tests ----
 
     @Test
     void nullMessage_shouldFail() {

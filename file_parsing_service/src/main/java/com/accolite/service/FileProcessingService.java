@@ -77,7 +77,7 @@ public class FileProcessingService {
                 String key = claimedFile.getFileName().toString() + ":" + task.lineNo();
                 try {
                     ParsedRecord record = FileParser.parseLine(task.line());
-                    kafka.sendRecord(key, record);
+                    kafka.sendRecord(key, record, String.valueOf(claimedFile.getFileName()),task.lineNo());
                 } catch (Exception ex) {
                     DeadLetterMessage dlt = new DeadLetterMessage();
                     dlt.setRawRecord(task.line());

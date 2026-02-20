@@ -51,7 +51,7 @@ public class DataValidationService {
         producer.send(message);
     }
 
-    private void validate(ReferenceMessage message) {
+    void validate(ReferenceMessage message) {
 
         if (message == null) {
             throw new IllegalArgumentException("Message cannot be null");
