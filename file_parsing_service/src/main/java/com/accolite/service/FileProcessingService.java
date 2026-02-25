@@ -6,6 +6,7 @@ import com.accolite.util.FileIngestProperties;
 import com.accolite.entity.ParsedRecord;
 import com.accolite.kafka.producer.KafkaProducerService;
 import com.accolite.util.FileParser;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -35,7 +36,9 @@ public class FileProcessingService {
 
     // choose based on your file format
     private static final int RECORD_LENGTH = 31;          // matches FileParser substring usage
-    private static final long CHUNK_RECORDS = 10_000;     // tune this
+    private static final long CHUNK_RECORDS = 10_000;
+
+    ObjectMapper mapper = new ObjectMapper();
 
     public FileProcessingService(FileIngestProperties props,
                                  @Qualifier("chunkExecutor") ExecutorService chunkExecutor,
@@ -77,7 +80,11 @@ public class FileProcessingService {
                 String key = claimedFile.getFileName().toString() + ":" + task.lineNo();
                 try {
                     ParsedRecord record = FileParser.parseLine(task.line());
-                    kafka.sendRecord(key, record, String.valueOf(claimedFile.getFileName()),task.lineNo());
+                    log.info("the object sent to kafka is :{}", record);
+
+                    // Send the OBJECT (JsonSerializer will write JSON bytes)
+                    kafka.sendRecord(key, record, String.valueOf(claimedFile.getFileName()), task.lineNo());
+                    log.info("the message sent to kafka successfully!!");
                 } catch (Exception ex) {
                     DeadLetterMessage dlt = new DeadLetterMessage();
                     dlt.setRawRecord(task.line());

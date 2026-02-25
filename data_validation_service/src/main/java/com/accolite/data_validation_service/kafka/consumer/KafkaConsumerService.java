@@ -1,10 +1,13 @@
 package com.accolite.data_validation_service.kafka.consumer;
 
 import com.accolite.data_validation_service.kafka.producer.DlqProducer;
+import com.accolite.data_validation_service.model.ValidationException;
+import com.accolite.data_validation_service.model.ValidationFailureEntity;
 import com.accolite.data_validation_service.service.ReferenceMessage;
 import com.accolite.data_validation_service.service.DataValidationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
 
@@ -15,25 +18,39 @@ public class KafkaConsumerService {
 
     private final DataValidationService validationService;
     private final DlqProducer dlqProducer;
+    @Value("${kafka.topic.reference.dlq}")
+    private String dlqtopic;
 
-    @KafkaListener(
-            topics = "${kafka.topic.reference.input}",
-            groupId = "${spring.kafka.consumer.group-id}",
-            containerFactory = "kafkaListenerContainerFactory"
-    )
+    @KafkaListener(topics = "${kafka.topic.reference.input}")
     public void consume(ReferenceMessage message) {
 
         try {
+
             validationService.process(message);
-        }
-        catch (Exception ex) {
-                String cusip = (message != null) ? message.getCusipId() : "null";
-                String action = (message != null) ? message.getAction() : "null";
 
-                log.error("DLQ due to error. cusipId={}, action={}, reason={}",
-                        cusip, action, ex.getMessage(), ex);
+        } catch (ValidationException ve) {
 
-                dlqProducer.send(message);
+            ValidationFailureEntity event =
+                    new ValidationFailureEntity(
+                            message,
+                            ve.getErrors(),
+                            "VALIDATION",
+                            "Validation failed"
+                    );
+
+            dlqProducer.send(dlqtopic,event);
+
+        } catch (Exception ex) {
+
+            ValidationFailureEntity event =
+                    new ValidationFailureEntity(
+                            message,
+                            null,
+                            "SYSTEM",
+                            ex.getMessage()
+                    );
+
+            dlqProducer.send(dlqtopic,event);
         }
     }
 }

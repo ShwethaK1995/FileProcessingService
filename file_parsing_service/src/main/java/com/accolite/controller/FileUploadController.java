@@ -1,11 +1,14 @@
 package com.accolite.controller;
 
 import com.accolite.util.FileIngestProperties;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -13,7 +16,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
+import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/files")
 public class FileUploadController {
@@ -24,8 +30,29 @@ public class FileUploadController {
         this.props = props;
     }
 
-    @PostMapping("/upload")
-    public ResponseEntity<String> upload(@RequestParam("file") MultipartFile file) {
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> health() {
+        return ResponseEntity.ok(
+                Map.of(
+                        "status", "UP",
+                        "service", "parser-service",
+                        "time", Instant.now().toString()
+                )
+
+        );
+
+    }
+
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload file for parsing")
+    public ResponseEntity<String> upload(
+            @Parameter(
+                    description = "File to upload",
+                    content = @Content(mediaType = MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                            schema = @Schema(type = "string", format = "binary"))
+            )
+            @RequestPart("file") MultipartFile file
+    ) {
         try {
             Path inputDir = Paths.get(props.inputDir());
             Files.createDirectories(inputDir);
@@ -34,8 +61,6 @@ public class FileUploadController {
             if (original == null || original.isBlank()) {
                 return ResponseEntity.badRequest().body("Missing filename");
             }
-
-            // IMPORTANT: prevent path traversal
             original = Paths.get(original).getFileName().toString();
 
             Path tmp = inputDir.resolve(original + ".part");
@@ -46,6 +71,8 @@ public class FileUploadController {
             }
 
             Files.move(tmp, fin, StandardCopyOption.REPLACE_EXISTING);
+            String traceId = "UPL-" + System.currentTimeMillis();
+            log.info("[{}] Uploaded file saved to: {}", traceId, fin.toAbsolutePath());
 
             return ResponseEntity.ok("Uploaded: " + fin.getFileName());
         } catch (Exception e) {

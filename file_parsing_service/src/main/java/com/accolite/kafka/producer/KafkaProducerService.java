@@ -1,7 +1,8 @@
 package com.accolite.kafka.producer;
 
-import com.accolite.entity.ParsedRecord;
 import com.accolite.entity.DeadLetterMessage;
+import com.accolite.entity.ParsedRecord;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -13,6 +14,8 @@ public class KafkaProducerService {
 
     private final KafkaTemplate<String, ParsedRecord> recordTemplate;
     private final KafkaTemplate<String, DeadLetterMessage> dltTemplate;
+    private final ObjectMapper objectMapper;
+
 
     @Value("${kafka.topic.parser}")
     private String parserTopic;
@@ -21,9 +24,10 @@ public class KafkaProducerService {
     private String dltTopic;
 
     public KafkaProducerService(KafkaTemplate<String, ParsedRecord> recordTemplate,
-                                KafkaTemplate<String, DeadLetterMessage> dltTemplate) {
+                                KafkaTemplate<String, DeadLetterMessage> dltTemplate, ObjectMapper objectMapper) {
         this.recordTemplate = recordTemplate;
         this.dltTemplate = dltTemplate;
+        this.objectMapper = objectMapper;
     }
 
     public void sendRecord(String key,
@@ -35,8 +39,7 @@ public class KafkaProducerService {
                 .whenComplete((result, ex) -> {
                     if (ex != null) {
                         DeadLetterMessage dlt = DeadLetterMessage.of(
-                                // rawRecord: use JSON if you can, else record.toString()
-                                String.valueOf(record),
+                                safeJson(record),
                                 "PUBLISH_FAILED: " + ex.getMessage(),
                                 fileName,
                                 recordIndex
@@ -50,11 +53,18 @@ public class KafkaProducerService {
         dltTemplate.send(dltTopic, key, msg)
                 .whenComplete((r, ex) -> {
                     if (ex != null) {
-                        // last resort
+                        // last resort (DLT publish should almost never fail)
                         log.error("DLT publish failed key={} error={}", key, ex.getMessage(), ex);
                     }
                 });
     }
 
-
+    private String safeJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            return String.valueOf(obj);
+        }
+    }
 }
+

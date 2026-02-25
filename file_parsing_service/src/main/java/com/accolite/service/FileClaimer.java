@@ -37,12 +37,6 @@ public class FileClaimer {
             long size = Files.size(input);
             if (size <= 0) return Optional.empty();
 
-            // If you are fixed-width: ensure file aligns to record size
-            if (size % recordLength != 0) {
-                log.warn("Skipping file {}: size {} not multiple of recordLength {}", input, size, recordLength);
-                return Optional.empty();
-            }
-
             Files.createDirectories(processingDir);
             Path target = processingDir.resolve(name + ".processing." + UUID.randomUUID());
 

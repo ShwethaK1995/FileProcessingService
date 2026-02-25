@@ -1,15 +1,18 @@
 package com.accolite.data_validation_service.service;
 
-import com.accolite.data_validation_service.ReferenceEntity;
+import com.accolite.data_validation_service.engine.ValidatorEngine;
 import com.accolite.data_validation_service.kafka.producer.KafkaProducerService;
+import com.accolite.data_validation_service.model.ReferenceEntity;
+import com.accolite.data_validation_service.model.ValidationError;
+import com.accolite.data_validation_service.model.ValidationException;
 import com.accolite.data_validation_service.repository.ReferenceRepository;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -17,14 +20,11 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class DataValidationServiceTest {
 
-    @Mock
-    private ReferenceRepository repository;
+    @Mock private ReferenceRepository repository;
+    @Mock private KafkaProducerService producer;
+    @Mock private ValidatorEngine<ReferenceMessage> validatorEngine;
 
-    @Mock
-    private KafkaProducerService producer;
-
-    @InjectMocks
-    private DataValidationService service;
+    @InjectMocks private DataValidationService service;
 
     private ReferenceMessage baseValid(String action) {
         ReferenceMessage m = new ReferenceMessage();
@@ -38,117 +38,38 @@ class DataValidationServiceTest {
     }
 
     @Test
-    void actionI_shouldInsertWhenNotExists() {
+    void process_whenValid_shouldSaveAndPublish() {
         ReferenceMessage m = baseValid("I");
-        when(repository.existsById("CUS123")).thenReturn(false);
+
+        // engine passes (does nothing)
+        doNothing().when(validatorEngine).validateOrThrow(m);
 
         service.process(m);
 
+        verify(validatorEngine).validateOrThrow(m);
         verify(repository).save(any(ReferenceEntity.class));
+
         verify(producer).send(m);
+        verifyNoMoreInteractions(producer);
     }
 
     @Test
-    void actionI_shouldFailWhenAlreadyExists() {
+    void process_whenValidationFails_shouldNotSaveOrPublish() {
         ReferenceMessage m = baseValid("I");
-        when(repository.existsById("CUS123")).thenReturn(true);
 
-        assertThrows(IllegalArgumentException.class, () -> service.process(m));
+        doThrow(new ValidationException(List.of(
+                new ValidationError("cusipId", "NOT_BLANK", "CUSIP must not be blank", "CUSIP_NOT_BLANK")
+        ))).when(validatorEngine).validateOrThrow(m);
 
-        verify(repository, never()).save(any());
-        verify(producer, never()).send(any());
+        assertThrows(ValidationException.class, () -> service.process(m));
+
+        verify(validatorEngine).validateOrThrow(m);
+        verifyNoInteractions(repository, producer);
     }
 
     @Test
-    void actionU_shouldUpdateWhenExists() {
-        ReferenceMessage m = baseValid("U");
-        when(repository.existsById("CUS123")).thenReturn(true);
-
-        service.process(m);
-
-        verify(repository).save(any(ReferenceEntity.class));
-        verify(producer).send(m);
-    }
-
-    @Test
-    void actionU_shouldFailWhenNotExists() {
-        ReferenceMessage m = baseValid("U");
-        when(repository.existsById("CUS123")).thenReturn(false);
-
-        assertThrows(IllegalArgumentException.class, () -> service.process(m));
-
-        verify(repository, never()).save(any());
-        verify(producer, never()).send(any());
-    }
-
-    @Test
-    void invalidAction_shouldFail() {
-        ReferenceMessage msg = new ReferenceMessage();
-        msg.setAction("X"); // invalid
-
-        assertThrows(IllegalArgumentException.class, () -> service.validate(msg));
-
-        // and verify repo not called (this also increases coverage)
-        verifyNoInteractions(repository);
-    }
-
-    @Test
-    void nullMessage_shouldFail() {
+    void process_nullMessage_shouldFail() {
         assertThrows(IllegalArgumentException.class, () -> service.process(null));
-        verifyNoInteractions(repository, producer);
-    }
-
-    @Test
-    void blankCusip_shouldFail() {
-        ReferenceMessage m = baseValid("I");
-        m.setCusipId("  ");
-
-        assertThrows(IllegalArgumentException.class, () -> service.process(m));
-        verifyNoInteractions(repository, producer);
-    }
-
-    @Test
-    void blankIsin_shouldFail() {
-        ReferenceMessage m = baseValid("I");
-        m.setIsin(null);
-
-        assertThrows(IllegalArgumentException.class, () -> service.process(m));
-        verifyNoInteractions(repository, producer);
-    }
-
-    @Test
-    void nullLotSize_shouldFail() {
-        ReferenceMessage m = baseValid("I");
-        m.setLotSize(null);
-
-        assertThrows(IllegalArgumentException.class, () -> service.process(m));
-        verifyNoInteractions(repository, producer);
-    }
-
-    @Test
-    void nonPositiveLotSize_shouldFail() {
-        ReferenceMessage m = baseValid("I");
-        m.setLotSize(BigDecimal.ZERO);
-
-        assertThrows(IllegalArgumentException.class, () -> service.process(m));
-        verifyNoInteractions(repository, producer);
-    }
-
-    @Test
-    void blankCountryCode_shouldFail() {
-        ReferenceMessage m = baseValid("I");
-        m.setCountryCode("");
-
-        assertThrows(IllegalArgumentException.class, () -> service.process(m));
-        verifyNoInteractions(repository, producer);
-    }
-
-    @Test
-    void blankAction_shouldFail() {
-        ReferenceMessage m = baseValid("I");
-        m.setAction(" ");
-
-        assertThrows(IllegalArgumentException.class, () -> service.process(m));
-        verifyNoInteractions(repository, producer);
+        verifyNoInteractions(validatorEngine, repository, producer);
     }
 }

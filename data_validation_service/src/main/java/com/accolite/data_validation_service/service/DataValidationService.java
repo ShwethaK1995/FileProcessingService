@@ -1,52 +1,36 @@
 package com.accolite.data_validation_service.service;
 
-import com.accolite.data_validation_service.ReferenceEntity;
+import com.accolite.data_validation_service.model.ReferenceEntity;
+import com.accolite.data_validation_service.engine.ValidatorEngine;
 import com.accolite.data_validation_service.kafka.producer.KafkaProducerService;
 import com.accolite.data_validation_service.repository.ReferenceRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static org.apache.kafka.common.utils.Utils.isBlank;
-
 @Service
-@RequiredArgsConstructor
 public class DataValidationService {
 
     private final ReferenceRepository repository;
     private final KafkaProducerService producer;
+    private final ValidatorEngine<ReferenceMessage> validatorEngine;
+
+
+    public DataValidationService(ReferenceRepository repository, KafkaProducerService producer, ValidatorEngine<ReferenceMessage> validatorEngine) {
+        this.repository = repository;
+        this.producer = producer;
+        this.validatorEngine = validatorEngine;
+    }
 
     @Transactional
     public void process(ReferenceMessage message) {
+        if (message == null) {
+            throw new IllegalArgumentException("Message must not be null");
+        }
 
-        validate(message);
+        validatorEngine.validateOrThrow(message);
 
         ReferenceEntity entity = convertToEntity(message);
-        boolean exists = repository.existsById(message.getCusipId());
-
-        if ("I".equalsIgnoreCase(message.getAction())) {
-
-            if (exists) {
-                throw new IllegalArgumentException(
-                        "Insert failed: record already exists for CUSIP " + message.getCusipId());
-            }
-
-            repository.save(entity);
-        }
-
-        else if ("U".equalsIgnoreCase(message.getAction())) {
-
-            if (!exists) {
-                throw new IllegalArgumentException(
-                        "Update failed: record does not exist for CUSIP " + message.getCusipId());
-            }
-
-            repository.save(entity);
-        }
-
-        else {
-            throw new IllegalArgumentException("Invalid action type: " + message.getAction());
-        }
+        repository.save(entity);
 
         producer.send(message);
     }
@@ -89,13 +73,32 @@ public class DataValidationService {
 
 
 
-    private ReferenceEntity convertToEntity(ReferenceMessage message) {
-        ReferenceEntity entity = new ReferenceEntity();
-        entity.setCusipId(message.getCusipId());
-        entity.setCountryCode(message.getCountryCode());
-        entity.setDescription(message.getDescription());
-        entity.setIsin(message.getIsin());
-        entity.setLotSize(message.getLotSize());
+    private ReferenceEntity convertToEntity(ReferenceMessage msg) {
+        ReferenceEntity entity;
+
+        if ("U".equalsIgnoreCase(msg.getAction())) {
+
+            // Update case
+            entity = repository.findById(msg.getCusipId())
+                    .orElseThrow(() ->
+                            new RuntimeException("CUSIP not found for update: " + msg.getCusipId()));
+
+        } else if ("I".equalsIgnoreCase(msg.getAction())) {
+
+            // Insert case
+            entity = new ReferenceEntity();
+            entity.setCusipId(msg.getCusipId());
+
+        } else {
+            throw new RuntimeException("Unsupported action: " + msg.getAction());
+        }
+
+        // Common field mapping
+        entity.setCountryCode(msg.getCountryCode());
+        entity.setDescription(msg.getDescription());
+        entity.setIsin(msg.getIsin());
+        entity.setLotSize(msg.getLotSize());
+
         return entity;
     }
 

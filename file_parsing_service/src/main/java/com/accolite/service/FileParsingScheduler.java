@@ -33,7 +33,7 @@ public class FileParsingScheduler {
         this.service = service;
     }
 
-    //@Scheduled(fixedDelay=5000)
+    @Scheduled(fixedDelay=5000)
     public void poll() {
         System.out.println("FileParsingScheduler::poll:enter");
         try {
@@ -41,7 +41,7 @@ public class FileParsingScheduler {
             if (!Files.isDirectory(inputDir)) return;
 
             PathMatcher matcher = inputDir.getFileSystem()
-                    .getPathMatcher("glob:" + (props.pattern() == null ? "*" : props.pattern()));
+                    .getPathMatcher("glob:*.{txt,csv}");
 
             ThreadPoolExecutor tpe = (executor instanceof ThreadPoolExecutor) ? (ThreadPoolExecutor) executor : null;
 

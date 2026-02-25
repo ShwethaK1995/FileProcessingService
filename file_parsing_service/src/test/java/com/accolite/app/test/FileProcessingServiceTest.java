@@ -60,9 +60,9 @@ class FileProcessingServiceTest {
         svc.process(file);
 
         // record sent once
-        verify(kafka, times(1)).sendRecord(anyString(), any(ParsedRecord.class),anyString(),anyLong());
+        verify(kafka, times(1)).sendRecord(anyString(), anyString(),anyString(),anyLong());
         // dlt sent once (bad line)
-        verify(kafka, times(1)).sendDLT(anyString(), any(DeadLetterMessage.class));
+        verify(kafka, times(1)).sendDLT(anyString(), anyString());
 
         // moved to processed
         assertTrue(Files.exists(processedDir.resolve("input.txt")));

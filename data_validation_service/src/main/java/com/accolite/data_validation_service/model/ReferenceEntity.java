@@ -1,4 +1,4 @@
-package com.accolite.data_validation_service;
+package com.accolite.data_validation_service.model;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;

@@ -5,10 +5,10 @@ import com.accolite.entity.ParsedRecord;
 import com.accolite.kafka.producer.KafkaProducerService;
 import com.accolite.util.FileIngestProperties;
 import com.accolite.util.FileParser;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.concurrent.Callable;
 
+@Slf4j
 public class FileChunkProcessor implements Callable<Integer> {
 
     private final File file;
@@ -69,7 +70,10 @@ public class FileChunkProcessor implements Callable<Integer> {
 
                     ParsedRecord parsedRecord = fileParser.parseLine(record);
 
-                    kafkaProducerService.sendRecord(key, parsedRecord,file.getName(),lineNumber);
+                    log.info("The object sent to kafka topic is: {}", parsedRecord);
+
+                    // Send the OBJECT (JsonSerializer will write JSON bytes)
+                    kafkaProducerService.sendRecord(key, parsedRecord, file.getName(), lineNumber);
 
                     processedCount++;
 

@@ -1,14 +1,16 @@
 package com.accolite.app.test;
 
-import com.accolite.entity.ParsedRecord;
-import com.accolite.entity.DeadLetterMessage;
 import com.accolite.kafka.producer.KafkaProducerService;
+import com.accolite.entity.DeadLetterMessage;
+import com.accolite.entity.ParsedRecord;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.concurrent.CompletableFuture;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class KafkaProducerServiceTest {
@@ -17,42 +19,42 @@ class KafkaProducerServiceTest {
     void sendRecord_shouldCallKafkaTemplateSend() {
         KafkaTemplate<String, ParsedRecord> recordTemplate = mock(KafkaTemplate.class);
         KafkaTemplate<String, DeadLetterMessage> dltTemplate = mock(KafkaTemplate.class);
-
-        KafkaProducerService svc = new KafkaProducerService(recordTemplate, dltTemplate);
-
-        // IMPORTANT: set correct field name exactly as in your service
-        ReflectionTestUtils.setField(svc, "parserTopic", "parser-topic");
-        ReflectionTestUtils.setField(svc, "dltTopic", "dlt-topic");
+        ObjectMapper objectMapper = mock(ObjectMapper.class);
 
         when(recordTemplate.send(anyString(), anyString(), any(ParsedRecord.class)))
-                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(null));
+                .thenReturn(CompletableFuture.completedFuture(null));
 
-        ParsedRecord r = new ParsedRecord("CUS", "US", "DESC", "ISIN", 1.0, "Y");
-        svc.sendRecord("k1",r,"test.txt",0);
+        KafkaProducerService svc = new KafkaProducerService(recordTemplate, dltTemplate,objectMapper);
+        ReflectionTestUtils.setField(svc, "parserTopic", "test-topic");
 
-        verify(recordTemplate, times(1))
-                .send(eq("parser-topic"), eq("k1"), eq(r));
+        ParsedRecord record = new ParsedRecord("CUS123", "IN", "RELIANCEIN", "1234", 1235.56, "N");
+        svc.sendRecord("CUS123", record, "input.txt", 5L);
+
+        verify(recordTemplate).send(eq("test-topic"), eq("CUS123"), eq(record));
+        verifyNoInteractions(dltTemplate); // because future completed successfully, no DLT path
     }
-
 
     @Test
     void sendDLT_shouldSendToDltTopic() {
         KafkaTemplate<String, ParsedRecord> recordTemplate = mock(KafkaTemplate.class);
         KafkaTemplate<String, DeadLetterMessage> dltTemplate = mock(KafkaTemplate.class);
+        ObjectMapper objectMapper = mock(ObjectMapper.class);
 
-        KafkaProducerService svc = new KafkaProducerService(recordTemplate, dltTemplate);
-        ReflectionTestUtils.setField(svc, "parserTopic", "parser-topic");
-        ReflectionTestUtils.setField(svc, "dltTopic", "dlt-topic");
-
-        when(dltTemplate.send(eq("dlt-topic"), eq("k2"), any(DeadLetterMessage.class)))
+        when(dltTemplate.send(anyString(), anyString(), any(DeadLetterMessage.class)))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
+        KafkaProducerService svc = new KafkaProducerService(recordTemplate, dltTemplate,objectMapper);
+        ReflectionTestUtils.setField(svc, "dltTopic", "parser-dlt-topic");
+
         DeadLetterMessage msg = new DeadLetterMessage();
+        msg.setRawRecord("bad-msg");
+        msg.setErrorMessage("ERR");
+        msg.setFileName("input.txt");
+        msg.setRecordIndex(1);
+        msg.setTimestamp(System.currentTimeMillis());
 
-        svc.sendDLT("k2", msg);
+        svc.sendDLT("CUS123", msg);
 
-        verify(dltTemplate, times(1)).send("dlt-topic", "k2", msg);
+        verify(dltTemplate).send(eq("parser-dlt-topic"), eq("CUS123"), eq(msg));
     }
-
 }
-
